@@ -1,0 +1,6 @@
+
+\.idea/
+build/
+dist/
+
+python_telnet_vlc\.egg-info/
