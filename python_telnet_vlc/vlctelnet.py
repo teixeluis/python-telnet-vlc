@@ -52,11 +52,11 @@ class VLCTelnet(object):
     def run_command(self, command):
         """Run a command and return a list with the output lines."""
         # Put the command in a nice byte-encoded variable
-        full_command = command.encode('ascii') + b'\n'
+        full_command = command.encode('utf-8') + b'\n'
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
-        command_output = self.tn.read_until(b'> ').decode('ascii').split('\r\n')[:-1]
+        command_output = self.tn.read_until(b'> ').decode('utf-8').split('\r\n')[:-1]
         # Raise command error if VLC does not recognize the command.
         if command_output:
             command_error = re.match(r"Error in.*", command_output[0])
@@ -244,23 +244,20 @@ class VLCTelnet(object):
 
     def info(self):
         """Information about the current stream."""
-        unparsed = [x for x in self.run_command('info') if x != '|']
-        try:
-            streams = [x.split(' ')[2] for x in [x for x in unparsed if x[0] == '+'][:-1]]
-        except:
-            raise ParseError("Could not get streams.")
-        out_list = []
-        start = 1
-        for stream in streams:
-            cur_stream = {'Stream': stream}
-            first_char = '|'
-            while first_char == '|':
-                cur_stream[unparsed[start].split(': ')[0][2:]] = ''.join(unparsed[start].split(': ')[1:])
-                start += 1
-                first_char = unparsed[start][0]
-            start += 1
-            out_list.append(cur_stream)
-        return out_list
+        section = None
+        data = {}
+        for l in self.run_command('info'):
+            if l[0] == '+':
+                if 'end of stream info' in l: continue
+                section = l.split('[')[1].replace(']','').strip().split(' ')[1]
+                data[section] = {}
+            elif l[0] == '|':
+                if len(l[2:]) == 0: continue
+                parts = l[2:].split(':',1)
+                data[section][parts[0].strip()] = parts[1].strip()
+            else:
+                raise ParseError("Unexpected line in info output")
+        return data
 
     # Skipping stats
     def get_time(self):
