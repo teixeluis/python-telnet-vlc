@@ -114,7 +114,7 @@ class VLCTelnet(object):
 
     def goto(self, item):
         """Goto item at index."""
-        command = 'goto ' + item
+        command = 'goto {}'.format(item)
         self.run_command(command)
 
     def repeat(self, switch=True, setting='on'):
@@ -262,7 +262,7 @@ class VLCTelnet(object):
     # Skipping stats
     def get_time(self):
         """Seconds elapsed since stream's beginning."""
-        return self.run_command('get_time')[0]
+        return int(self.run_command('get_time')[0])
 
     def is_playing(self):
         """True if a stream plays, False otherwise."""
@@ -275,7 +275,7 @@ class VLCTelnet(object):
 
     def get_length(self):
         """The length of the current stream."""
-        return self.run_command('get_length')[0]
+        return int(self.run_command('get_length')[0])
 
     # Block 3
     def set_volume(self, setto):
@@ -285,16 +285,16 @@ class VLCTelnet(object):
 
     def volume(self):
         """Get audio volume."""
-        return self.run_command('volume')[0]
+        return int(self.run_command('volume')[0])
 
     def volup(self, raiseby):
         """Raise audio volume X steps."""
-        command = 'volup ' + raiseby
+        command = 'volup {}'.format(raiseby)
         self.run_command(command)
 
     def voldown(self, raiseby):
         """Lower audio volume X steps."""
-        command = 'voldown ' + raiseby
+        command = 'voldown {}'.format(raiseby)
         self.run_command(command)
 
     # The following 'get' commands ARE NOT PARSED! Must do later :D
