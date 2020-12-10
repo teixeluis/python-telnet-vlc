@@ -7,7 +7,6 @@ import re
 # Error Imports
 from socket import error as sockerr
 
-
 # Exceptions
 class VLCProcessError(Exception):
     """Something is wrong with VLC itself."""
@@ -150,11 +149,11 @@ class VLCTelnet(object):
         status_output = self.run_command('status')
         if len(status_output) == 3:
             inputloc = '%20'.join(status_output[0].split(' ')[3:-1])
-            volume = status_output[1].split(' ')[3]
+            volume = int(status_output[1].split(' ')[3])
             state = status_output[2].split(' ')[2]
             returndict = {'input': inputloc, 'volume': volume, 'state': state}
         elif len(status_output) == 2:
-            volume = status_output[0].split(' ')[3]
+            volume = int(status_output[0].split(' ')[3])
             state = status_output[1].split(' ')[2]
             returndict = {'volume': volume, 'state': state}
         else:
@@ -248,13 +247,26 @@ class VLCTelnet(object):
         data = {}
         for l in self.run_command('info'):
             if l[0] == '+':
+                # Example: "+----[ Stream 5 ]" or "+----[ Meta data ]"
                 if 'end of stream info' in l: continue
                 section = l.split('[')[1].replace(']','').strip().split(' ')[1]
+                try:
+                    section = int(section)
+                except ValueError:
+                    pass
                 data[section] = {}
             elif l[0] == '|':
+                # Example: "| Description: Closed captions 4"
                 if len(l[2:]) == 0: continue
-                parts = l[2:].split(':',1)
-                data[section][parts[0].strip()] = parts[1].strip()
+                key, value = l[2:].split(':',1)
+                try:
+                    value = int(value)
+                except ValueError:
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        value = value.strip()
+                data[section][key.strip()] = value
             else:
                 raise ParseError("Unexpected line in info output")
         return data
@@ -280,21 +292,21 @@ class VLCTelnet(object):
     # Block 3
     def set_volume(self, setto):
         """Set audio volume."""
-        command = 'volume ' + setto
+        command = 'volume {}'.format(int(setto))
         self.run_command(command)
 
     def volume(self):
-        """Get audio volume."""
+        """Get audio volume (0 to 500)."""
         return int(self.run_command('volume')[0])
 
     def volup(self, raiseby):
         """Raise audio volume X steps."""
-        command = 'volup {}'.format(raiseby)
+        command = 'volup {}'.format(int(raiseby))
         self.run_command(command)
 
     def voldown(self, raiseby):
         """Lower audio volume X steps."""
-        command = 'voldown {}'.format(raiseby)
+        command = 'voldown {}'.format(int(raiseby))
         self.run_command(command)
 
     # The following 'get' commands ARE NOT PARSED! Must do later :D
