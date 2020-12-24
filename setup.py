@@ -7,8 +7,8 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="python-telnet-vlc",
-    version="1.0.4",
-    author="stephenmac7, rodripf",
+    version="2.0.1",
+    author="stephenmac7, rodripf, BilliAlpha, David McClosky",
     author_email="rodripf@gmail.com",
     description="A library to control or get information about VLC using Telnet",
     long_description=long_description,
