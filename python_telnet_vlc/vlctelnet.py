@@ -1,11 +1,14 @@
 # Library for contacting VLC through telnet.
 
 # Imports
+import logging
 import telnetlib
 import re
 
 # Error Imports
 from socket import error as sockerr
+
+_LOGGER = logging.getLogger(__package__)
 
 # Exceptions
 class VLCProcessError(Exception):
@@ -52,11 +55,13 @@ class VLCTelnet(object):
         """Run a command and return a list with the output lines."""
         # Put the command in a nice byte-encoded variable
         full_command = command.encode('utf-8') + b'\n'
+        _LOGGER.debug("Sending command: %s", command)
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
         command_output = self.tn.read_until(b'> ').decode('utf-8').split('\r\n')[:-1]
         # Raise command error if VLC does not recognize the command.
+        _LOGGER.debug("Command output: %s", command_output)
         if command_output:
             command_error = re.match(r"Error in.*", command_output[0])
             if re.match(r"Unknown command `.*'\. Type `help' for help\.", command_output[0]):
@@ -274,7 +279,8 @@ class VLCTelnet(object):
     # Skipping stats
     def get_time(self):
         """Seconds elapsed since stream's beginning."""
-        return int(self.run_command('get_time')[0])
+        stream_time = self.run_command('get_time')[0]
+        return int(stream_time) if stream_time else 0
 
     def is_playing(self):
         """True if a stream plays, False otherwise."""
@@ -287,7 +293,8 @@ class VLCTelnet(object):
 
     def get_length(self):
         """The length of the current stream."""
-        return int(self.run_command('get_length')[0])
+        stream_length = self.run_command('get_length')[0]
+        return int(stream_length) if stream_length else 0
 
     # Block 3
     def set_volume(self, setto):
