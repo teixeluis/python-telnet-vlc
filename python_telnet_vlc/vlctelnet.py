@@ -49,13 +49,14 @@ class VLCTelnet(object):
             raise ConnectionError("Could not connect to VLC. Make sure the Telnet interface is enabled and accessible.")
         # Login to VLC using password provided in the arguments
         self.tn.read_until(b"Password: ")
-        self.run_command(password)
+        self.run_command(password, False)
 
-    def run_command(self, command):
+    def run_command(self, command, log=True):
         """Run a command and return a list with the output lines."""
         # Put the command in a nice byte-encoded variable
         full_command = command.encode('utf-8') + b'\n'
-        _LOGGER.debug("Sending command: %s", command)
+        if log:
+            _LOGGER.debug("Sending command: %s", command)
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
