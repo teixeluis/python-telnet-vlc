@@ -36,27 +36,66 @@ class ConnectionError(Exception):
     pass
 
 
+class AuthError(Exception):
+    """Failed to login with provided password."""
+    pass
+
+
 # VLC Telnet Class
 class VLCTelnet(object):
     """Conection to VLC using Telnet."""
 
     # Non commands
-    def __init__(self, host="localhost", password="admin", port=4212):
-        # Connect to telnet. Host and port are __init__ arguments
+    def __init__(self, host="localhost", password="admin", port=4212, connect=True, login=True):
+        self.tn = telnetlib.Telnet()
+        self.host = host
+        self.port = port
+        self.password = password
+        if connect:
+            self.connect()
+        # Login to VLC using password provided in the arguments
+        if connect and login:
+            self.login()
+
+    def connect(self):
+        """Connect to VLC."""
+        # Connect to telnet.
         try:
-            self.tn = telnetlib.Telnet(host, port=port)
+            self.tn.open(self.host, port=self.port, timeout=10)
         except sockerr:
             raise ConnectionError("Could not connect to VLC. Make sure the Telnet interface is enabled and accessible.")
-        # Login to VLC using password provided in the arguments
-        self.tn.read_until(b"Password: ")
-        self.run_command(password, False)
 
-    def run_command(self, command, log=True):
+    def disconnect(self):
+        """Disconnect from VLC."""
+        self.tn.close()
+        # reset the instance
+        self.tn = telnetlib.Telnet()
+
+    def login(self):
+        """Login with password."""
+        self.tn.read_until(b"Password: ")
+        full_command = self.password.encode('utf-8') + b'\n'
+        self.tn.write(full_command)
+        for _ in range(2):
+            command_output = self.tn.read_until(b'\n', timeout=10).decode('utf-8').strip('\r\n')
+            if command_output:  # discard empty line once.
+                break
+        _LOGGER.debug("Password response: %s", command_output)
+        parsed_output = command_output.lower()
+        if "wrong password" in parsed_output:
+            raise AuthError("Failed to login to VLC.")
+        if "welcome" not in parsed_output:
+            raise CommandError("Unexpected password response: {}".format(command_output))
+        if "> " in command_output:
+            return
+        # Read until prompt
+        self.tn.read_until(b'> ')
+
+    def run_command(self, command):
         """Run a command and return a list with the output lines."""
         # Put the command in a nice byte-encoded variable
         full_command = command.encode('utf-8') + b'\n'
-        if log:
-            _LOGGER.debug("Sending command: %s", command)
+        _LOGGER.debug("Sending command: %s", command)
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
