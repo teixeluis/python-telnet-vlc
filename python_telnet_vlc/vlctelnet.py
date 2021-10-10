@@ -46,11 +46,13 @@ class VLCTelnet(object):
     """Conection to VLC using Telnet."""
 
     # Non commands
-    def __init__(self, host="localhost", password="admin", port=4212, connect=True, login=True):
+    def __init__(self, host="localhost", password="admin", port=4212, connect=True, login=True, retries=5):
         self.tn = telnetlib.Telnet()
         self.host = host
         self.port = port
         self.password = password
+        self.retries = retries
+
         if connect:
             self.connect()
         # Login to VLC using password provided in the arguments
@@ -96,15 +98,16 @@ class VLCTelnet(object):
             self.tn.write(b'\n')
             answer = self.tn.read_until(b'> ')
             if answer:
-                print(f'is_connected: answer obtained. Value: {answer}')
+                _LOGGER.debug("is_connected: answer obtained. Value: %s", answer)
                 return True
             else:
-                print(f'is_connected: failed to obtain answer. Value: {answer}')
+                _LOGGER.debug("is_connected: failed to obtain answer.")
                 return False
         except sockerr:
             return False
+
     def run_command(self, command):
-        return self.do_run_command(command, 5)
+        return self.do_run_command(command, self.retries)
 
     def do_send_string(self, string):
         """Run a command and return a list with the output lines."""
