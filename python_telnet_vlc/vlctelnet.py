@@ -91,11 +91,26 @@ class VLCTelnet(object):
         # Read until prompt
         self.tn.read_until(b'> ')
 
+    def is_connected(self):
+        try:
+            self.tn.write(b'\n')
+            answer = self.tn.read_until(b'> ')
+            if answer:
+                print(f'is_connected: answer obtained. Value: {answer}')
+                return True
+            else:
+                print(f'is_connected: failed to obtain answer. Value: {answer}')
+                return False
+        except sockerr:
+            return False
     def run_command(self, command):
+        return self.do_run_command(command, 5)
+
+    def do_send_string(self, string):
         """Run a command and return a list with the output lines."""
         # Put the command in a nice byte-encoded variable
-        full_command = command.encode('utf-8') + b'\n'
-        _LOGGER.debug("Sending command: %s", command)
+        full_command = string.encode('utf-8') + b'\n'
+        _LOGGER.debug("Sending command: %s", string)
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
@@ -111,6 +126,17 @@ class VLCTelnet(object):
         # Return the split output of the command
         return command_output
 
+    def do_run_command(self, command, retries):
+        _LOGGER.debug("do_run_command: retries: %s", retries)
+
+        if self.is_connected():
+            return self.do_send_string(command)
+        else:
+            if retries > 0:
+                self.connect()
+                return self.do_run_command(command, retries - 1)
+            else:
+                raise ConnectionError("Could not connect to VLC. Make sure the Telnet interface is enabled and accessible.")
     # Commands
     # Block 1
     def add(self, xyz):
@@ -192,6 +218,9 @@ class VLCTelnet(object):
     def status(self):
         """Current playlist status."""
         status_output = self.run_command('status')
+        _LOGGER.debug("status: status output: %s", status_output)
+        if status_output is None:
+            raise ParseError("Could not get status.")
         if len(status_output) == 3:
             inputloc = '%20'.join(status_output[0].split(' ')[3:-1])
             volume = int(status_output[1].split(' ')[3])
