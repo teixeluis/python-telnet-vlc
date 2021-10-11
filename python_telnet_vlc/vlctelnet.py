@@ -4,6 +4,7 @@
 import logging
 import telnetlib
 import re
+import time
 
 # Error Imports
 from socket import error as sockerr
@@ -46,12 +47,13 @@ class VLCTelnet(object):
     """Conection to VLC using Telnet."""
 
     # Non commands
-    def __init__(self, host="localhost", password="admin", port=4212, connect=True, login=True, retries=5):
+    def __init__(self, host="localhost", password="admin", port=4212, connect=True, login=True, retries=10, timeout=10):
         self.tn = telnetlib.Telnet()
         self.host = host
         self.port = port
         self.password = password
         self.retries = retries
+        self.timeout = timeout
 
         if connect:
             self.connect()
@@ -63,7 +65,7 @@ class VLCTelnet(object):
         """Connect to VLC."""
         # Connect to telnet.
         try:
-            self.tn.open(self.host, port=self.port, timeout=10)
+            self.tn.open(self.host, self.port, self.timeout)
         except sockerr:
             raise ConnectionError("Could not connect to VLC. Make sure the Telnet interface is enabled and accessible.")
 
@@ -79,7 +81,7 @@ class VLCTelnet(object):
         full_command = self.password.encode('utf-8') + b'\n'
         self.tn.write(full_command)
         for _ in range(2):
-            command_output = self.tn.read_until(b'\n', timeout=10).decode('utf-8').strip('\r\n')
+            command_output = self.tn.read_until(b'\n', self.timeout).decode('utf-8').strip('\r\n')
             if command_output:  # discard empty line once.
                 break
         _LOGGER.debug("Password response: %s", command_output)
@@ -96,14 +98,14 @@ class VLCTelnet(object):
     def is_connected(self):
         try:
             self.tn.write(b'\n')
-            answer = self.tn.read_until(b'> ')
+            answer = self.tn.read_until(b'> ', self.timeout)
             if answer:
                 _LOGGER.debug("is_connected: answer obtained. Value: %s", answer)
                 return True
             else:
                 _LOGGER.debug("is_connected: failed to obtain answer.")
                 return False
-        except sockerr:
+        except Exception:
             return False
 
     def run_command(self, command):
@@ -117,7 +119,7 @@ class VLCTelnet(object):
         # Write out the command to telnet
         self.tn.write(full_command)
         # Get the command output, decode it, and split out the junk
-        command_output = self.tn.read_until(b'> ').decode('utf-8').split('\r\n')[:-1]
+        command_output = self.tn.read_until(b'> ', self.timeout).decode('utf-8').split('\r\n')[:-1]
         # Raise command error if VLC does not recognize the command.
         _LOGGER.debug("Command output: %s", command_output)
         if command_output:
@@ -135,8 +137,21 @@ class VLCTelnet(object):
         if self.is_connected():
             return self.do_send_string(command)
         else:
+            _LOGGER.debug("do_run_command: retrying connection. Iteration # %s", retries)
+
             if retries > 0:
-                self.connect()
+                try:
+                    self.disconnect()
+                    time.sleep(1)
+                except Exception:
+                    pass
+                
+                try:
+                    self.connect()
+                    self.login()
+                except Exception:
+                    pass
+                
                 return self.do_run_command(command, retries - 1)
             else:
                 raise ConnectionError("Could not connect to VLC. Make sure the Telnet interface is enabled and accessible.")
@@ -222,16 +237,44 @@ class VLCTelnet(object):
         """Current playlist status."""
         status_output = self.run_command('status')
         _LOGGER.debug("status: status output: %s", status_output)
+
         if status_output is None:
             raise ParseError("Could not get status.")
         if len(status_output) == 3:
-            inputloc = '%20'.join(status_output[0].split(' ')[3:-1])
-            volume = int(status_output[1].split(' ')[3])
-            state = status_output[2].split(' ')[2]
+            output_inputloc = status_output[0].split(' ')
+            output_volume = status_output[1].split(' ')
+            output_status = status_output[2].split(' ')
+
+            if len(output_inputloc) >= 4:
+                inputloc = '%20'.join(output_inputloc[3:-1])
+            else:
+                raise ParseError("Received malformed status message")
+
+            if len(output_volume) >= 4:
+                volume = int(output_volume[3])
+            else:
+                raise ParseError("Received malformed status message")
+
+            if len(output_status) >= 3:
+                state = output_status[2]
+            else:
+                raise ParseError("Received malformed status message")
+
             returndict = {'input': inputloc, 'volume': volume, 'state': state}
         elif len(status_output) == 2:
-            volume = int(status_output[0].split(' ')[3])
-            state = status_output[1].split(' ')[2]
+            output_volume = status_output[0].split(' ')
+            output_status = status_output[1].split(' ')
+
+            if len(output_volume) >= 4:
+                volume = int(output_volume[3])
+            else:
+                raise ParseError("Received malformed status message")
+
+            if len(output_status) >= 3:
+                state = output_status[2]
+            else:
+                raise ParseError("Received malformed status message")
+
             returndict = {'volume': volume, 'state': state}
         else:
             raise ParseError("Could not get status.")
